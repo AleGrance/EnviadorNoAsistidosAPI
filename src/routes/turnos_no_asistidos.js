@@ -14,8 +14,8 @@ odontos.retryConnectionInterval = 1000; // reconnect interval in case of connect
 odontos.blobAsText = false;
 
 // Hora de llamada a la función del JKMT
-var horaLlamada = "7"; //AM
-// Tiempo de intervalo entre consultas a la base de JKMT
+var horaLlamada = "07:00"; //AM
+// Tiempo de intervalo entre ejecución de la función. Cada 1 hora
 var tiempoRetrasoSQL = 60000 * 60;
 
 module.exports = (app) => {
@@ -240,7 +240,6 @@ module.exports = (app) => {
     });
 
   function injeccionFirebird() {
-    console.log("Se actualiza el PSQL");
     Firebird.attach(odontos, function (err, db) {
       if (err) throw err;
 
@@ -301,16 +300,19 @@ module.exports = (app) => {
 
   setInterval(() => {
     let hoyAhora = new Date();
-    let horaAhora = hoyAhora.getHours();
-    let minutoAhora = hoyAhora.getMinutes();
-    let horaMinutoAhora = horaAhora + ":" + minutoAhora;
     let diaHoy = hoyAhora.toString().slice(0, 3);
-    console.log("Hoy es:", diaHoy, "la hora es:", horaAhora, ":", minutoAhora);
+    let fullHoraAhora = hoyAhora.toString().slice(16, 21);
 
-    if (horaAhora == horaLlamada) {
+    //let horaAhora = hoyAhora.getHours();
+    //let minutoAhora = hoyAhora.getMinutes();
+    //let horaMinutoAhora = horaAhora + ":" + minutoAhora;
+
+    console.log("Hoy es:", diaHoy, "la hora es:", fullHoraAhora);
+
+    if (fullHoraAhora == horaLlamada) {
       //this.mood = "Trabajando! 👨🏻‍💻";
       injeccionFirebird();
-      console.log("La hora es: ", horaMinutoAhora);
+      console.log("Se consulta al JKMT y actualiza el PSQL");
     } else {
       //this.mood = "Durmiendo! 😴";
       console.log("Turnos no asistidos ya no consulta al JKMT!");
