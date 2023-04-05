@@ -15,7 +15,7 @@ odontos.blobAsText = false;
 
 // Hora de llamada a la función del JKMT
 var horaLlamada = "07:00"; //AM
-// Tiempo de intervalo entre ejecución de la función. Cada 1 hora
+// Tiempo de intervalo entre ejecución de la función. Cada 1hs. Podría ser cada 24hs
 var tiempoRetrasoSQL = 60000 * 60;
 
 module.exports = (app) => {
@@ -239,6 +239,7 @@ module.exports = (app) => {
         });
     });
 
+  // Trae los turnos del JKMT al PGSQL
   function injeccionFirebird() {
     Firebird.attach(odontos, function (err, db) {
       if (err) throw err;
@@ -298,6 +299,7 @@ module.exports = (app) => {
     });
   }
 
+  // Intervalo entre consultas al JKMT cada 1hora
   setInterval(() => {
     let hoyAhora = new Date();
     let diaHoy = hoyAhora.toString().slice(0, 3);
