@@ -1,4 +1,5 @@
 const { Op } = require("sequelize");
+const cron = require("node-cron");
 var Firebird = require("node-firebird");
 
 var odontos = {};
@@ -21,6 +22,103 @@ var tiempoRetrasoSQL = 60000 * 60;
 module.exports = (app) => {
   const Turnos_no_asistidos = app.db.models.Turnos_no_asistidos;
   const Users = app.db.models.Users;
+
+  // Ejecutar la funcion de 24hs Ayer de Martes(2) a Sabados (6) a las 07:00am
+  cron.schedule("00 7 * * 2-6", () => {
+    let hoyAhora = new Date();
+    let diaHoy = hoyAhora.toString().slice(0, 3);
+    let fullHoraAhora = hoyAhora.toString().slice(16, 21);
+
+    console.log("Hoy es:", diaHoy, "la hora es:", fullHoraAhora);
+    injeccionFirebird();
+  });
+
+  // Intervalo entre consultas al JKMT cada 1hora
+  // setInterval(() => {
+  //   let hoyAhora = new Date();
+  //   let diaHoy = hoyAhora.toString().slice(0, 3);
+  //   let fullHoraAhora = hoyAhora.toString().slice(16, 21);
+
+  //   //let horaAhora = hoyAhora.getHours();
+  //   //let minutoAhora = hoyAhora.getMinutes();
+  //   //let horaMinutoAhora = horaAhora + ":" + minutoAhora;
+
+  //   console.log("Hoy es:", diaHoy, "la hora es:", fullHoraAhora);
+
+  //   if (fullHoraAhora == horaLlamada) {
+  //     //this.mood = "Trabajando! 👨🏻‍💻";
+  //     injeccionFirebird();
+  //     console.log("Se consulta al JKMT y actualiza el PSQL");
+  //   } else {
+  //     //this.mood = "Durmiendo! 😴";
+  //     console.log("Turnos no asistidos ya no consulta al JKMT!");
+
+  //   }
+  // }, tiempoRetrasoSQL);
+
+  // Trae los turnos del JKMT al PGSQL
+  function injeccionFirebird() {
+    Firebird.attach(odontos, function (err, db) {
+      if (err) throw err;
+
+      // db = DATABASE
+      db.query(
+        // Trae los ultimos 50 registros de turnos del JKMT
+        "SELECT * FROM VW_RESUMEN_TURNOS_AYER",
+        //"SELECT COUNT(*) FROM VW_RESUMEN_TURNOS_HOY",
+        function (err, result) {
+          console.log("Cant de turnos obtenidos del JKMT:", result.length);
+
+          // Recorre el array que contiene los datos e inserta en la base de postgresql
+          result.forEach((e) => {
+            // Si el nro de cert trae NULL cambiar por 000000
+            if (!e.NRO_CERT) {
+              e.NRO_CERT = " ";
+            }
+            // Si no tiene plan
+            if (!e.PLAN_CLIENTE) {
+              e.PLAN_CLIENTE = " ";
+            }
+            // Si la hora viene por ej: 11:0 entonces agregar el 0 al final
+            if (e.HORA[3] === "0") {
+              e.HORA = e.HORA + "0";
+            }
+            // Si la hora viene por ej: 10:3 o 11:2 entonces agregar el 0 al final
+            if (e.HORA.length === 4 && e.HORA[0] === "1") {
+              e.HORA = e.HORA + "0";
+            }
+            // Si el nro de tel trae NULL cambiar por 595000 y cambiar el estado a 2
+            // Si no reemplazar el 0 por el 595
+            if (!e.TELEFONO_MOVIL) {
+              e.TELEFONO_MOVIL = "595000";
+              e.estado_envio = 2;
+            } else {
+              e.TELEFONO_MOVIL = e.TELEFONO_MOVIL.replace(0, "595");
+            }
+
+            // Reemplazar por mi nro para probar el envio
+            // if (!e.TELEFONO_MOVIL) {
+            //   e.TELEFONO_MOVIL = "595000";
+            //   e.estado_envio = 2;
+            // } else {
+            //   e.TELEFONO_MOVIL = "595986153301";
+            // }
+
+            Turnos_no_asistidos.create(e)
+              //.then((result) => res.json(result))
+              .catch((error) => console.log(error.message));
+          });
+
+          // IMPORTANTE: cerrar la conexion
+          db.detach();
+        }
+      );
+    });
+  }
+
+  /*
+    Metodos
+  */
 
   app
     .route("/turnosNoAsistidos")
@@ -238,87 +336,4 @@ module.exports = (app) => {
           });
         });
     });
-
-  // Trae los turnos del JKMT al PGSQL
-  function injeccionFirebird() {
-    Firebird.attach(odontos, function (err, db) {
-      if (err) throw err;
-
-      // db = DATABASE
-      db.query(
-        // Trae los ultimos 50 registros de turnos del JKMT
-        "SELECT * FROM VW_RESUMEN_TURNOS_AYER",
-        //"SELECT COUNT(*) FROM VW_RESUMEN_TURNOS_HOY",
-        function (err, result) {
-          console.log("Cant de turnos obtenidos del JKMT:", result.length);
-
-          // Recorre el array que contiene los datos e inserta en la base de postgresql
-          result.forEach((e) => {
-            // Si el nro de cert trae NULL cambiar por 000000
-            if (!e.NRO_CERT) {
-              e.NRO_CERT = " ";
-            }
-            // Si no tiene plan
-            if (!e.PLAN_CLIENTE) {
-              e.PLAN_CLIENTE = " ";
-            }
-            // Si la hora viene por ej: 11:0 entonces agregar el 0 al final
-            if (e.HORA[3] === "0") {
-              e.HORA = e.HORA + "0";
-            }
-            // Si la hora viene por ej: 10:3 o 11:2 entonces agregar el 0 al final
-            if (e.HORA.length === 4 && e.HORA[0] === "1") {
-              e.HORA = e.HORA + "0";
-            }
-            // Si el nro de tel trae NULL cambiar por 595000 y cambiar el estado a 2
-            // Si no reemplazar el 0 por el 595
-            if (!e.TELEFONO_MOVIL) {
-              e.TELEFONO_MOVIL = "595000";
-              e.estado_envio = 2;
-            } else {
-              e.TELEFONO_MOVIL = e.TELEFONO_MOVIL.replace(0, "595");
-            }
-
-            // Reemplazar por mi nro para probar el envio
-            // if (!e.TELEFONO_MOVIL) {
-            //   e.TELEFONO_MOVIL = "595000";
-            //   e.estado_envio = 2;
-            // } else {
-            //   e.TELEFONO_MOVIL = "595986153301";
-            // }
-
-            Turnos_no_asistidos.create(e)
-              //.then((result) => res.json(result))
-              .catch((error) => console.log(error.message));
-          });
-
-          // IMPORTANTE: cerrar la conexion
-          db.detach();
-        }
-      );
-    });
-  }
-
-  // Intervalo entre consultas al JKMT cada 1hora
-  setInterval(() => {
-    let hoyAhora = new Date();
-    let diaHoy = hoyAhora.toString().slice(0, 3);
-    let fullHoraAhora = hoyAhora.toString().slice(16, 21);
-
-    //let horaAhora = hoyAhora.getHours();
-    //let minutoAhora = hoyAhora.getMinutes();
-    //let horaMinutoAhora = horaAhora + ":" + minutoAhora;
-
-    console.log("Hoy es:", diaHoy, "la hora es:", fullHoraAhora);
-
-    if (fullHoraAhora == horaLlamada) {
-      //this.mood = "Trabajando! 👨🏻‍💻";
-      injeccionFirebird();
-      console.log("Se consulta al JKMT y actualiza el PSQL");
-    } else {
-      //this.mood = "Durmiendo! 😴";
-      console.log("Turnos no asistidos ya no consulta al JKMT!");
-
-    }
-  }, tiempoRetrasoSQL);
 };
