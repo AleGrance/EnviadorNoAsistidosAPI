@@ -1,5 +1,7 @@
 const { Op } = require("sequelize");
 const cron = require("node-cron");
+const fs = require('fs');
+const path = require('path');
 var Firebird = require("node-firebird");
 
 var odontos = {};
@@ -14,10 +16,16 @@ odontos.role = null; // default
 odontos.retryConnectionInterval = 1000; // reconnect interval in case of connection drop
 odontos.blobAsText = false;
 
-// Hora de llamada a la función del JKMT
-var horaLlamada = "07:00"; //AM
-// Tiempo de intervalo entre ejecución de la función. Cada 1hs. Podría ser cada 24hs
-var tiempoRetrasoSQL = 60000 * 60;
+// Ruta de la imagen JPEG
+const imagePath = path.join(__dirname, '..', 'assets', 'img', 'imgNoAsistidos.jpeg');
+
+// Leer el contenido de la imagen como un buffer
+const imageBuffer = fs.readFileSync(imagePath);
+
+// Convertir el buffer a base64
+const base64String = imageBuffer.toString('base64');
+
+console.log(base64String);
 
 module.exports = (app) => {
   const Turnos_no_asistidos = app.db.models.Turnos_no_asistidos;
@@ -65,7 +73,7 @@ module.exports = (app) => {
       // db = DATABASE
       db.query(
         // Trae los ultimos 50 registros de turnos del JKMT
-        "SELECT * FROM VW_RESUMEN_TURNOS_AYER",
+        "SELECT * FROM VW_RESUMEN_TURNOS_AYER ROWS 5",
         //"SELECT COUNT(*) FROM VW_RESUMEN_TURNOS_HOY",
         function (err, result) {
           console.log("Cant de turnos obtenidos del JKMT:", result.length);
@@ -90,20 +98,20 @@ module.exports = (app) => {
             }
             // Si el nro de tel trae NULL cambiar por 595000 y cambiar el estado a 2
             // Si no reemplazar el 0 por el 595
-            if (!e.TELEFONO_MOVIL) {
-              e.TELEFONO_MOVIL = "595000";
-              e.estado_envio = 2;
-            } else {
-              e.TELEFONO_MOVIL = e.TELEFONO_MOVIL.replace(0, "595");
-            }
-
-            // Reemplazar por mi nro para probar el envio
             // if (!e.TELEFONO_MOVIL) {
             //   e.TELEFONO_MOVIL = "595000";
             //   e.estado_envio = 2;
             // } else {
-            //   e.TELEFONO_MOVIL = "595986153301";
+            //   e.TELEFONO_MOVIL = e.TELEFONO_MOVIL.replace(0, "595");
             // }
+
+            // Reemplazar por mi nro para probar el envio
+            if (!e.TELEFONO_MOVIL) {
+              e.TELEFONO_MOVIL = "595000";
+              e.estado_envio = 2;
+            } else {
+              e.TELEFONO_MOVIL = "595986153301";
+            }
 
             Turnos_no_asistidos.create(e)
               //.then((result) => res.json(result))
@@ -112,6 +120,10 @@ module.exports = (app) => {
 
           // IMPORTANTE: cerrar la conexion
           db.detach();
+          console.log(
+            "Llama a la funcion iniciar envio que se retrasa 1 min en ejecutarse 48hs"
+          );
+          iniciarEnvio();
         }
       );
 
@@ -123,6 +135,10 @@ module.exports = (app) => {
        * 
        */
     });
+  }
+
+  function iniciarEnvio() {
+
   }
 
   /*
