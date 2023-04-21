@@ -30,6 +30,7 @@ module.exports = (app) => {
     let fullHoraAhora = hoyAhora.toString().slice(16, 21);
 
     console.log("Hoy es:", diaHoy, "la hora es:", fullHoraAhora);
+    console.log('CRON: Se consulta al JKMT 24hs Ayer - No Asistidos');
     injeccionFirebird();
   });
 
@@ -113,6 +114,14 @@ module.exports = (app) => {
           db.detach();
         }
       );
+
+      /**
+       * 
+       * FALTA ADD LA FUNCION QUE ENVIA LOS MENSAJES A LA API FREE
+       * PARA DAR DE BAJA LA APP WEB Y QUE SE HAGA TODO CON ESTA API
+       * EJEMPLO LA API DE THINKCHAT
+       * 
+       */
     });
   }
 
