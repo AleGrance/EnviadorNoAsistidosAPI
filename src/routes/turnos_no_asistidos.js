@@ -1,7 +1,8 @@
 const { Op } = require("sequelize");
 const cron = require("node-cron");
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
+const axios = require("axios");
 var Firebird = require("node-firebird");
 
 var odontos = {};
@@ -16,16 +17,43 @@ odontos.role = null; // default
 odontos.retryConnectionInterval = 1000; // reconnect interval in case of connection drop
 odontos.blobAsText = false;
 
-// Ruta de la imagen JPEG
-const imagePath = path.join(__dirname, '..', 'assets', 'img', 'imgNoAsistidos.jpeg');
+// Datos del Mensaje de whatsapp
+let contactoCliente = '';
+let fileMimeTypeMedia = '';
+let fileBase64Media = '';
 
+// Mensaje pie de imagen
+let mensajePie = `
+
+*¿NO PUDISTE ASISTIR A TU TURNO?* 😱
+Agenda un nuevo turno/consulta ingresando al siguiente link http://wa.me/5950214129000 o llamanos al 0214129000📲
+
+_Recorda que en caso de no poder asistir a tu turno debes notificar con tiempo ya que hay otros pacientes aguardando para ser agendados_`;
+
+let mensajePieCompleto = "";
+
+// Ruta de la imagen JPEG
+const imagePath = path.join(
+  __dirname,
+  "..",
+  "assets",
+  "img",
+  "imgNoAsistidos.jpeg"
+);
 // Leer el contenido de la imagen como un buffer
 const imageBuffer = fs.readFileSync(imagePath);
-
 // Convertir el buffer a base64
-const base64String = imageBuffer.toString('base64');
+const base64String = imageBuffer.toString("base64");
+// Mapear la extensión de archivo a un tipo de archivo
+const fileExtension = path.extname(imagePath);
+const fileType = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+}[fileExtension.toLowerCase()];
 
-console.log(base64String);
+fileMimeTypeMedia = fileType;
+fileBase64Media = base64String.split(',')[0];
 
 module.exports = (app) => {
   const Turnos_no_asistidos = app.db.models.Turnos_no_asistidos;
@@ -38,32 +66,9 @@ module.exports = (app) => {
     let fullHoraAhora = hoyAhora.toString().slice(16, 21);
 
     console.log("Hoy es:", diaHoy, "la hora es:", fullHoraAhora);
-    console.log('CRON: Se consulta al JKMT 24hs Ayer - No Asistidos');
+    console.log("CRON: Se consulta al JKMT 24hs Ayer - No Asistidos");
     injeccionFirebird();
   });
-
-  // Intervalo entre consultas al JKMT cada 1hora
-  // setInterval(() => {
-  //   let hoyAhora = new Date();
-  //   let diaHoy = hoyAhora.toString().slice(0, 3);
-  //   let fullHoraAhora = hoyAhora.toString().slice(16, 21);
-
-  //   //let horaAhora = hoyAhora.getHours();
-  //   //let minutoAhora = hoyAhora.getMinutes();
-  //   //let horaMinutoAhora = horaAhora + ":" + minutoAhora;
-
-  //   console.log("Hoy es:", diaHoy, "la hora es:", fullHoraAhora);
-
-  //   if (fullHoraAhora == horaLlamada) {
-  //     //this.mood = "Trabajando! 👨🏻‍💻";
-  //     injeccionFirebird();
-  //     console.log("Se consulta al JKMT y actualiza el PSQL");
-  //   } else {
-  //     //this.mood = "Durmiendo! 😴";
-  //     console.log("Turnos no asistidos ya no consulta al JKMT!");
-
-  //   }
-  // }, tiempoRetrasoSQL);
 
   // Trae los turnos del JKMT al PGSQL
   function injeccionFirebird() {
@@ -128,17 +133,104 @@ module.exports = (app) => {
       );
 
       /**
-       * 
+       *
        * FALTA ADD LA FUNCION QUE ENVIA LOS MENSAJES A LA API FREE
        * PARA DAR DE BAJA LA APP WEB Y QUE SE HAGA TODO CON ESTA API
        * EJEMPLO LA API DE THINKCHAT
-       * 
+       *
        */
     });
   }
 
+  // Iniciar los envios - Consultar al PGSQL
   function iniciarEnvio() {
+    setTimeout(() => {
+      Turnos48.findAll({
+        where: { estado_envio: 0 },
+        order: [["createdAt", "DESC"]],
+      })
+        .then((result) => {
+          losTurnos = result;
+          console.log("Enviando turnos 48hs:", losTurnos.length);
+        })
+        .then(() => {
+          enviarMensaje();
+        })
+        .catch((error) => {
+          res.status(402).json({
+            msg: error.menssage,
+          });
+        });
+    }, tiempoRetrasoPGSQL);
+  }
 
+  // Envia los mensajes
+  let retraso = () => new Promise((r) => setTimeout(r, tiempoRetrasoEnvios));
+  async function enviarMensaje() {
+    console.log("Inicia el recorrido del for para enviar los turnos 48hs");
+    for (let i = 0; i < losTurnos.length; i++) {
+      const turnoId = losTurnos[i].id_turno;
+      const data = {
+        action: "send_template",
+        token:
+          "tk162c5b6f2cfaf4982acddd9ee1a978c39c349acfaf9d24c750dcaf9caf7392c7",
+        from: "595214129000",
+        to: losTurnos[i].TELEFONO_MOVIL,
+        template_id: templateThikchat,
+        template_params: [
+          losTurnos[i].CLIENTE,
+          losTurnos[i].FECHA + " " + losTurnos[i].HORA,
+          losTurnos[i].SUCURSAL,
+          losTurnos[i].NOMBRE_COMERCIAL,
+          losTurnos[i].CARNET,
+        ],
+      };
+
+      // Funcion ajax para nodejs que realiza los envios a la API de TC
+      axios
+        .post(url, data)
+        .then((response) => {
+          console.log(response.data);
+          if (response.data.success == true) {
+            //console.log("Enviado");
+            // Se actualiza el estado a 1
+            const body = {
+              estado_envio: 1,
+            };
+
+            Turnos48.update(body, {
+              where: { id_turno: turnoId },
+            })
+              //.then((result) => res.json(result))
+              .catch((error) => {
+                res.status(412).json({
+                  msg: error.message,
+                });
+              });
+          } else {
+            //console.log("No Enviado");
+            // Se actualiza el estado a 2
+            const body = {
+              estado_envio: 2,
+            };
+
+            Turnos48.update(body, {
+              where: { id_turno: turnoId },
+            })
+              //.then((result) => res.json(result))
+              .catch((error) => {
+                res.status(412).json({
+                  msg: error.message,
+                });
+              });
+          }
+        })
+        .catch((error) => {
+          console.error("Ocurrió un error:", error);
+        });
+
+      await retraso();
+    }
   }
 
   /*
