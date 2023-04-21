@@ -17,10 +17,12 @@ odontos.role = null; // default
 odontos.retryConnectionInterval = 1000; // reconnect interval in case of connection drop
 odontos.blobAsText = false;
 
+// Var para la conexion a WWA Free
+const wwaUrl = "http://localhost:3001/lead";
+
 // Datos del Mensaje de whatsapp
-let contactoCliente = '';
-let fileMimeTypeMedia = '';
-let fileBase64Media = '';
+let fileMimeTypeMedia = "";
+let fileBase64Media = "";
 
 // Mensaje pie de imagen
 let mensajePie = `
@@ -47,13 +49,18 @@ const base64String = imageBuffer.toString("base64");
 // Mapear la extensión de archivo a un tipo de archivo
 const fileExtension = path.extname(imagePath);
 const fileType = {
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.png': 'image/png',
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
 }[fileExtension.toLowerCase()];
 
 fileMimeTypeMedia = fileType;
-fileBase64Media = base64String.split(',')[0];
+fileBase64Media = base64String.split(",")[0];
+
+// Tiempo de retraso de consulta al PGSQL para iniciar el envio. 1 minuto
+var tiempoRetrasoPGSQL = 1000 * 60;
+// Tiempo entre envios. Cada 4 segundos envía un mensaje a la API de Thinkcomm
+var tiempoRetrasoEnvios = 10000;
 
 module.exports = (app) => {
   const Turnos_no_asistidos = app.db.models.Turnos_no_asistidos;
@@ -118,40 +125,33 @@ module.exports = (app) => {
               e.TELEFONO_MOVIL = "595986153301";
             }
 
-            Turnos_no_asistidos.create(e)
-              //.then((result) => res.json(result))
-              .catch((error) => console.log(error.message));
+            // Turnos_no_asistidos.create(e)
+            //   //.then((result) => res.json(result))
+            //   .catch((error) => console.log(error.message));
           });
 
           // IMPORTANTE: cerrar la conexion
           db.detach();
           console.log(
-            "Llama a la funcion iniciar envio que se retrasa 1 min en ejecutarse 48hs"
+            "Llama a la funcion iniciar envio que se retrasa 1 min en ejecutarse No Asistidos"
           );
           iniciarEnvio();
         }
       );
-
-      /**
-       *
-       * FALTA ADD LA FUNCION QUE ENVIA LOS MENSAJES A LA API FREE
-       * PARA DAR DE BAJA LA APP WEB Y QUE SE HAGA TODO CON ESTA API
-       * EJEMPLO LA API DE THINKCHAT
-       *
-       */
     });
   }
 
-  // Iniciar los envios - Consultar al PGSQL
+  // Inicia los envios - Consulta al PGSQL
+  let losTurnos = [];
   function iniciarEnvio() {
     setTimeout(() => {
-      Turnos48.findAll({
+      Turnos_no_asistidos.findAll({
         where: { estado_envio: 0 },
         order: [["createdAt", "DESC"]],
       })
         .then((result) => {
           losTurnos = result;
-          console.log("Enviando turnos 48hs:", losTurnos.length);
+          console.log("Enviando turnos No Asistidos:", losTurnos.length);
         })
         .then(() => {
           enviarMensaje();
@@ -167,38 +167,36 @@ module.exports = (app) => {
   // Envia los mensajes
   let retraso = () => new Promise((r) => setTimeout(r, tiempoRetrasoEnvios));
   async function enviarMensaje() {
-    console.log("Inicia el recorrido del for para enviar los turnos 48hs");
+    console.log(
+      "Inicia el recorrido del for para enviar los turnos No Asistidos"
+    );
     for (let i = 0; i < losTurnos.length; i++) {
       const turnoId = losTurnos[i].id_turno;
+      mensajePieCompleto = losTurnos[i].CLIENTE + mensajePie;
+
       const data = {
-        action: "send_template",
-        token:
-          "tk162c5b6f2cfaf4982acddd9ee1a978c39c349acfaf9d24c750dcaf9caf7392c7",
-        from: "595214129000",
-        to: losTurnos[i].TELEFONO_MOVIL,
-        template_id: templateThikchat,
-        template_params: [
-          losTurnos[i].CLIENTE,
-          losTurnos[i].FECHA + " " + losTurnos[i].HORA,
-          losTurnos[i].SUCURSAL,
-          losTurnos[i].NOMBRE_COMERCIAL,
-          losTurnos[i].CARNET,
-        ],
+        message: mensajePieCompleto,
+        phone: losTurnos[i].TELEFONO_MOVIL,
+        mimeType: fileMimeTypeMedia,
+        data: fileBase64Media,
+        fileName: "",
+        fileSize: "",
       };
 
       // Funcion ajax para nodejs que realiza los envios a la API de TC
       axios
-        .post(url, data)
+        .post(wwaUrl, data)
         .then((response) => {
-          console.log(response.data);
-          if (response.data.success == true) {
-            //console.log("Enviado");
+          const data = response.data;
+
+          if (data.responseExSave.id) {
+            console.log("Enviado");
             // Se actualiza el estado a 1
             const body = {
               estado_envio: 1,
             };
 
-            Turnos48.update(body, {
+            Turnos_no_asistidos.update(body, {
               where: { id_turno: turnoId },
             })
               //.then((result) => res.json(result))
@@ -207,14 +205,14 @@ module.exports = (app) => {
                   msg: error.message,
                 });
               });
-          } else {
-            //console.log("No Enviado");
+          } else if (data.responseExSave.id) {
+            console.log("No Enviado");
             // Se actualiza el estado a 2
             const body = {
               estado_envio: 2,
             };
 
-            Turnos48.update(body, {
+            Turnos_no_asistidos.update(body, {
               where: { id_turno: turnoId },
             })
               //.then((result) => res.json(result))
