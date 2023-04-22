@@ -18,7 +18,7 @@ odontos.retryConnectionInterval = 1000; // reconnect interval in case of connect
 odontos.blobAsText = false;
 
 // Var para la conexion a WWA Free
-const wwaUrl = "http://localhost:3001/lead";
+const wwaUrl = "http://localhost:3002/lead";
 
 // Datos del Mensaje de whatsapp
 let fileMimeTypeMedia = "";
@@ -58,9 +58,9 @@ fileMimeTypeMedia = fileType;
 fileBase64Media = base64String.split(",")[0];
 
 // Tiempo de retraso de consulta al PGSQL para iniciar el envio. 1 minuto
-var tiempoRetrasoPGSQL = 20000;
-// Tiempo entre envios. Cada 4 segundos envía un mensaje a la API de Thinkcomm
-var tiempoRetrasoEnvios = 10000;
+var tiempoRetrasoPGSQL = 1000 * 60;
+// Tiempo entre envios. Cada 15s se realiza el envío a la API free WWA
+var tiempoRetrasoEnvios = 15000;
 
 module.exports = (app) => {
   const Turnos_no_asistidos = app.db.models.Turnos_no_asistidos;
@@ -85,7 +85,7 @@ module.exports = (app) => {
       // db = DATABASE
       db.query(
         // Trae los ultimos 50 registros de turnos del JKMT
-        "SELECT * FROM VW_RESUMEN_TURNOS_AYER ROWS 5",
+        "SELECT * FROM VW_RESUMEN_TURNOS_AYER ROWS",
         //"SELECT COUNT(*) FROM VW_RESUMEN_TURNOS_HOY",
         function (err, result) {
           console.log("Cant de turnos obtenidos del JKMT:", result.length);
@@ -110,24 +110,25 @@ module.exports = (app) => {
             }
             // Si el nro de tel trae NULL cambiar por 595000 y cambiar el estado a 2
             // Si no reemplazar el 0 por el 595
-            // if (!e.TELEFONO_MOVIL) {
-            //   e.TELEFONO_MOVIL = "595000";
-            //   e.estado_envio = 2;
-            // } else {
-            //   e.TELEFONO_MOVIL = e.TELEFONO_MOVIL.replace(0, "595");
-            // }
-
-            // Reemplazar por mi nro para probar el envio
             if (!e.TELEFONO_MOVIL) {
               e.TELEFONO_MOVIL = "595000";
               e.estado_envio = 2;
             } else {
-              e.TELEFONO_MOVIL = "595986153301";
+              e.TELEFONO_MOVIL = e.TELEFONO_MOVIL.replace(0, "595");
             }
 
-            // Turnos_no_asistidos.create(e)
-            //   //.then((result) => res.json(result))
-            //   .catch((error) => console.log(error.message));
+            // Reemplazar por mi nro para probar el envio
+            // if (!e.TELEFONO_MOVIL) {
+            //   e.TELEFONO_MOVIL = "595000";
+            //   e.estado_envio = 2;
+            // } else {
+            //   e.TELEFONO_MOVIL = "595986153301";
+            // }
+
+            // Poblar PGSQL
+            Turnos_no_asistidos.create(e)
+              //.then((result) => res.json(result))
+              .catch((error) => console.log(error.message));
           });
 
           // IMPORTANTE: cerrar la conexion
@@ -140,8 +141,6 @@ module.exports = (app) => {
       );
     });
   }
-
-  injeccionFirebird();
 
   // Inicia los envios - Consulta al PGSQL
   let losTurnos = [];
