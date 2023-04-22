@@ -58,7 +58,7 @@ fileMimeTypeMedia = fileType;
 fileBase64Media = base64String.split(",")[0];
 
 // Tiempo de retraso de consulta al PGSQL para iniciar el envio. 1 minuto
-var tiempoRetrasoPGSQL = 1000 * 60;
+var tiempoRetrasoPGSQL = 20000;
 // Tiempo entre envios. Cada 4 segundos envía un mensaje a la API de Thinkcomm
 var tiempoRetrasoEnvios = 10000;
 
@@ -141,6 +141,8 @@ module.exports = (app) => {
     });
   }
 
+  injeccionFirebird();
+
   // Inicia los envios - Consulta al PGSQL
   let losTurnos = [];
   function iniciarEnvio() {
@@ -183,14 +185,14 @@ module.exports = (app) => {
         fileSize: "",
       };
 
-      // Funcion ajax para nodejs que realiza los envios a la API de TC
+      // Funcion ajax para nodejs que realiza los envios a la API free WWA
       axios
         .post(wwaUrl, data)
         .then((response) => {
           const data = response.data;
 
           if (data.responseExSave.id) {
-            console.log("Enviado");
+            console.log("Enviado - OK");
             // Se actualiza el estado a 1
             const body = {
               estado_envio: 1,
@@ -205,11 +207,13 @@ module.exports = (app) => {
                   msg: error.message,
                 });
               });
-          } else if (data.responseExSave.id) {
-            console.log("No Enviado");
-            // Se actualiza el estado a 2
+          }
+
+          if (data.responseExSave.unknow) {
+            console.log("No Enviado - unknow");
+            // Se actualiza el estado a 3
             const body = {
-              estado_envio: 2,
+              estado_envio: 3,
             };
 
             Turnos_no_asistidos.update(body, {
@@ -222,6 +226,25 @@ module.exports = (app) => {
                 });
               });
           }
+
+          if (data.responseExSave.error) {
+            console.log("No enviado - error");
+            const errMsg = data.responseExSave.error.slice(0, 17);
+            if (errMsg === "Escanee el código") {
+              updateEstatusERROR(turnoId, 104);
+              //console.log("Error 104: ", data.responseExSave.error);
+            }
+            // Sesion cerrada o desvinculada. Puede que se envie al abrir la sesion o al vincular
+            if (errMsg === "Protocol error (R") {
+              updateEstatusERROR(turnoId, 105);
+              //console.log("Error 105: ", data.responseExSave.error);
+            }
+            // El numero esta mal escrito o supera los 12 caracteres
+            if (errMsg === "Evaluation failed") {
+              updateEstatusERROR(turnoId, 106);
+              //console.log("Error 106: ", data.responseExSave.error);
+            }
+          }
         })
         .catch((error) => {
           console.error("Ocurrió un error:", error);
@@ -229,6 +252,24 @@ module.exports = (app) => {
 
       await retraso();
     }
+    console.log("Fin del envío");
+  }
+
+  function updateEstatusERROR(turnoId, cod_error) {
+    // Se actualiza el estado segun el errors
+    const body = {
+      estado_envio: cod_error,
+    };
+
+    Turnos_no_asistidos.update(body, {
+      where: { id_turno: turnoId },
+    })
+      //.then((result) => res.json(result))
+      .catch((error) => {
+        res.status(412).json({
+          msg: error.message,
+        });
+      });
   }
 
   /*
