@@ -85,7 +85,7 @@ module.exports = (app) => {
       // db = DATABASE
       db.query(
         // Trae los ultimos 50 registros de turnos del JKMT
-        "SELECT * FROM VW_RESUMEN_TURNOS_AYER ROWS",
+        "SELECT * FROM VW_RESUMEN_TURNOS_AYER",
         //"SELECT COUNT(*) FROM VW_RESUMEN_TURNOS_HOY",
         function (err, result) {
           console.log("Cant de turnos obtenidos del JKMT:", result.length);
