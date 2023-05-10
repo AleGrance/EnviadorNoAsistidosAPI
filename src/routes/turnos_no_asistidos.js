@@ -55,6 +55,7 @@ const fileType = {
 }[fileExtension.toLowerCase()];
 
 fileMimeTypeMedia = fileType;
+// El split esta al pedo
 fileBase64Media = base64String.split(",")[0];
 
 // Tiempo de retraso de consulta al PGSQL para iniciar el envio. 1 minuto
@@ -128,7 +129,9 @@ module.exports = (app) => {
             // Poblar PGSQL
             Turnos_no_asistidos.create(e)
               //.then((result) => res.json(result))
-              .catch((error) => console.log(error.message));
+              .catch((error) =>
+                console.log("Error al poblar PGSQL", error.message)
+              );
           });
 
           // IMPORTANTE: cerrar la conexion
@@ -246,7 +249,7 @@ module.exports = (app) => {
           }
         })
         .catch((error) => {
-          console.error("Ocurrió un error:", error);
+          console.error("Axios-Error al enviar WWE-API:", error.code);
         });
 
       await retraso();
@@ -289,7 +292,7 @@ module.exports = (app) => {
         });
     })
     .post((req, res) => {
-      console.log(req.body);
+      //console.log(req.body);
       Turnos_no_asistidos.create(req.body)
         .then((result) => res.json(result))
         .catch((error) => res.json(error));
