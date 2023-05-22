@@ -87,6 +87,41 @@ module.exports = (app) => {
         .catch((error) => res.json(error));
     });
 
+  // Historicos por rango de fecha
+  app.route("/historicosNoAsistidosFecha").post((req, res) => {
+    let fechaHoy = new Date().toISOString().slice(0, 10);
+    let { fecha_desde, fecha_hasta } = req.body;
+
+    if (fecha_desde === "" && fecha_hasta === "") {
+      fecha_desde = fechaHoy;
+      fecha_hasta = fechaHoy;
+    }
+
+    if (fecha_hasta == "") {
+      fecha_hasta = fecha_desde;
+    }
+
+    if (fecha_desde == "") {
+      fecha_desde = fecha_hasta;
+    }
+
+    console.log(req.body);
+
+    Historicos_no_asistidos.findAll({
+      where: {
+        fecha: {
+          [Op.between]: [fecha_desde + " 00:00:00", fecha_hasta + " 23:59:59"],
+        },
+      },
+    })
+      .then((result) => res.json(result))
+      .catch((error) => {
+        res.status(402).json({
+          msg: error.menssage,
+        });
+      });
+  });
+
   // app
   //   .route("/roles/:role_id")
   //   .get((req, res) => {
