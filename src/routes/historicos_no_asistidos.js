@@ -19,7 +19,7 @@ module.exports = (app) => {
     let fullHoraAhora = hoyAhora.toString().slice(16, 21);
 
     console.log("Hoy es:", diaHoy, "la hora es:", fullHoraAhora);
-    console.log("CRON: Se almacena el historico de los enviados hoy - 24hs");
+    console.log("CRON: Se almacena el historico de los enviados hoy - No Asistidos");
     cantidadEnviados();
   });
 
