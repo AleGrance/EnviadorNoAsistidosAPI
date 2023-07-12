@@ -19,6 +19,7 @@ odontos.blobAsText = false;
 
 // Var para la conexion a WWA Free
 //const wwaUrl = "http://localhost:3002/lead";
+
 // Conexion a WWA Free del Centos 10.27
 const wwaUrl = "http://192.168.10.27:3002/lead";
 
