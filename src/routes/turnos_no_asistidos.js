@@ -66,6 +66,9 @@ var tiempoRetrasoPGSQL = 1000 * 60;
 // Tiempo entre envios. Cada 15s se realiza el envío a la API free WWA
 var tiempoRetrasoEnvios = 15000;
 
+// Blacklist fechas
+const blacklist = ["2023-05-02", "2023-05-16", "2023-08-15"];
+
 module.exports = (app) => {
   const Turnos_no_asistidos = app.db.models.Turnos_no_asistidos;
   const Users = app.db.models.Users;
@@ -75,6 +78,14 @@ module.exports = (app) => {
     let hoyAhora = new Date();
     let diaHoy = hoyAhora.toString().slice(0, 3);
     let fullHoraAhora = hoyAhora.toString().slice(16, 21);
+
+    // Checkear la blacklist antes de ejecutar la función
+    const now = new Date();
+    const dateString = now.toISOString().split("T")[0];
+    if (blacklist.includes(dateString)) {
+      console.log(`La fecha ${dateString} está en la blacklist y no se ejecutará la tarea.`);
+      return;
+    }
 
     console.log("Hoy es:", diaHoy, "la hora es:", fullHoraAhora);
     console.log("CRON: Se consulta al JKMT 24hs Ayer - No Asistidos");
