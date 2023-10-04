@@ -13,7 +13,7 @@ module.exports = (app) => {
   };
 
   // Ejecutar la funcion a las 08:30 de Martes(2) a Sabados (6)
-  cron.schedule("00 12 * * 2-6", () => {
+  cron.schedule("00 13 * * 2-6", () => {
     let hoyAhora = new Date();
     let diaHoy = hoyAhora.toString().slice(0, 3);
     let fullHoraAhora = hoyAhora.toString().slice(16, 21);
