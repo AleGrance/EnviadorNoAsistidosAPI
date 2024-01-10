@@ -2,18 +2,18 @@ import Sequelize from "sequelize";
 import fs from "fs";
 import path from "path";
 
+// Datos de la conexion PG
+import { postgres } from "./libs/config";
+
 let db = null;
 
 module.exports = (app) => {
-  const config = app.libs.config; //Info de la conexion a la db del archivo config.js
-  //console.log(config);
-
   if (!db) {
     const sequelize = new Sequelize(
-      config.database,
-      config.username,
-      config.password,
-      config.params
+      postgres.database,
+      postgres.username,
+      postgres.password,
+      postgres.params
     );
 
     db = {

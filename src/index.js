@@ -1,5 +1,7 @@
 import express from "express";
 import consign from "consign";
+// Importar para leer los valores de entorno
+require('dotenv').config()
 
 const app = express();
 

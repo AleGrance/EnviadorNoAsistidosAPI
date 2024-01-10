@@ -3,19 +3,10 @@ const cron = require("node-cron");
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
+// Conexion con Firebird
 var Firebird = require("node-firebird");
-
-var odontos = {};
-
-odontos.host = "192.168.10.247";
-odontos.port = 3050;
-odontos.database = "c:\\\\jakemate\\\\base\\\\ODONTOS64.fdb";
-odontos.user = "SYSDBA";
-odontos.password = "masterkey";
-odontos.lowercase_keys = false; // set to true to lowercase keys
-odontos.role = null; // default
-odontos.retryConnectionInterval = 1000; // reconnect interval in case of connection drop
-odontos.blobAsText = false;
+// Datos de la conexion Firebird
+import { firebird } from "../libs/config";
 
 // Var para la conexion a WWA Free
 //const wwaUrl = "http://localhost:3002/lead";
@@ -38,13 +29,7 @@ _Recorda que en caso de no poder asistir a tu turno debes notificar con tiempo y
 let mensajePieCompleto = "";
 
 // Ruta de la imagen JPEG
-const imagePath = path.join(
-  __dirname,
-  "..",
-  "assets",
-  "img",
-  "imgNoAsistidos.jpeg"
-);
+const imagePath = path.join(__dirname, "..", "assets", "img", "imgNoAsistidos.jpeg");
 // Leer el contenido de la imagen como un buffer
 const imageBuffer = fs.readFileSync(imagePath);
 // Convertir el buffer a base64
@@ -92,10 +77,22 @@ module.exports = (app) => {
     injeccionFirebird();
   });
 
-  // Trae los turnos del JKMT al PGSQL
+  // Trae los datos del Firebird - Intenta cada 1 min en caso de error de conexion
+  function tryAgain() {
+    console.log("Error de conexion con el Firebird, se intenta nuevamente luego de 10s...");
+    setTimeout(() => {
+      injeccionFirebird();
+    }, 1000 * 60);
+  }
+
+  // Trae los datos del Firebird
   function injeccionFirebird() {
-    Firebird.attach(odontos, function (err, db) {
-      if (err) throw err;
+    console.log("Obteniendo los datos del Firebird...");
+    Firebird.attach(firebird, function (err, db) {
+      if (err) {
+        console.log(err);
+        return tryAgain();
+      }
 
       // db = DATABASE
       db.query(
@@ -143,9 +140,7 @@ module.exports = (app) => {
             // Poblar PGSQL
             Turnos_no_asistidos.create(e)
               //.then((result) => res.json(result))
-              .catch((error) =>
-                console.log("Error al poblar PGSQL", error.message)
-              );
+              .catch((error) => console.log("Error al poblar PGSQL", error.message));
           });
 
           // IMPORTANTE: cerrar la conexion
@@ -158,6 +153,8 @@ module.exports = (app) => {
       );
     });
   }
+
+  //injeccionFirebird();
 
   // Inicia los envios - Consulta al PGSQL
   let losTurnos = [];
@@ -182,12 +179,12 @@ module.exports = (app) => {
     }, tiempoRetrasoPGSQL);
   }
 
+  //iniciarEnvio();
+
   // Envia los mensajes
   let retraso = () => new Promise((r) => setTimeout(r, tiempoRetrasoEnvios));
   async function enviarMensaje() {
-    console.log(
-      "Inicia el recorrido del for para enviar los turnos No Asistidos"
-    );
+    console.log("Inicia el recorrido del for para enviar los turnos No Asistidos");
     for (let i = 0; i < losTurnos.length; i++) {
       const turnoId = losTurnos[i].id_turno;
       mensajePieCompleto = losTurnos[i].CLIENTE + mensajePie;
@@ -379,10 +376,7 @@ module.exports = (app) => {
           { estado_envio: 1 },
           {
             updatedAt: {
-              [Op.between]: [
-                fecha_desde + " 00:00:00",
-                fecha_hasta + " 23:59:59",
-              ],
+              [Op.between]: [fecha_desde + " 00:00:00", fecha_hasta + " 23:59:59"],
             },
           },
         ],
