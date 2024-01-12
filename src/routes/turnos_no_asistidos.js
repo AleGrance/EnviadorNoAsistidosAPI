@@ -9,14 +9,19 @@ var Firebird = require("node-firebird");
 import { firebird } from "../libs/config";
 
 // Var para la conexion a WWA Free
-//const wwaUrl = "http://localhost:3002/lead";
+const wwaUrl = "http://localhost:3001/lead";
 
 // Conexion a WWA Free del Centos 10.27
-const wwaUrl = "http://192.168.10.200:3002/lead";
+//const wwaUrl = "http://192.168.10.200:3002/lead";
+
+// URL del notificador
+const wwaUrl_Notificacion = "http://localhost:3088/lead";
 
 // Datos del Mensaje de whatsapp
 let fileMimeTypeMedia = "";
 let fileBase64Media = "";
+// Mensaje del notificador
+let mensajeBody = "";
 
 // Mensaje pie de imagen
 let mensajePie = `
@@ -112,30 +117,23 @@ module.exports = (app) => {
             if (!e.PLAN_CLIENTE) {
               e.PLAN_CLIENTE = " ";
             }
-            // Si la hora viene por ej: 11:0 entonces agregar el 0 al final
-            if (e.HORA[3] === "0") {
-              e.HORA = e.HORA + "0";
-            }
-            // Si la hora viene por ej: 10:3 o 11:2 entonces agregar el 0 al final
-            if (e.HORA.length === 4 && e.HORA[0] === "1") {
-              e.HORA = e.HORA + "0";
-            }
+
             // Si el nro de tel trae NULL cambiar por 595000 y cambiar el estado a 2
             // Si no reemplazar el 0 por el 595
-            if (!e.TELEFONO_MOVIL) {
-              e.TELEFONO_MOVIL = "595000";
-              e.estado_envio = 2;
-            } else {
-              e.TELEFONO_MOVIL = e.TELEFONO_MOVIL.replace(0, "595");
-            }
-
-            // Reemplazar por mi nro para probar el envio
             // if (!e.TELEFONO_MOVIL) {
             //   e.TELEFONO_MOVIL = "595000";
             //   e.estado_envio = 2;
             // } else {
-            //   e.TELEFONO_MOVIL = "595986153301";
+            //   e.TELEFONO_MOVIL = e.TELEFONO_MOVIL.replace(0, "595");
             // }
+
+            // Reemplazar por mi nro para probar el envio
+            if (!e.TELEFONO_MOVIL) {
+              e.TELEFONO_MOVIL = "595000";
+              e.estado_envio = 2;
+            } else {
+              e.TELEFONO_MOVIL = "595986153301";
+            }
 
             // Poblar PGSQL
             Turnos_no_asistidos.create(e)
@@ -179,7 +177,7 @@ module.exports = (app) => {
     }, tiempoRetrasoPGSQL);
   }
 
-  //iniciarEnvio();
+  iniciarEnvio();
 
   // Envia los mensajes
   let retraso = () => new Promise((r) => setTimeout(r, tiempoRetrasoEnvios));
@@ -200,7 +198,7 @@ module.exports = (app) => {
 
       // Funcion ajax para nodejs que realiza los envios a la API free WWA
       axios
-        .post(wwaUrl, data)
+        .post(wwaUrl, data, { timeout: 60000 })
         .then((response) => {
           const data = response.data;
 
@@ -251,6 +249,10 @@ module.exports = (app) => {
             if (errMsg === "Protocol error (R") {
               updateEstatusERROR(turnoId, 105);
               //console.log("Error 105: ", data.responseExSave.error);
+              // Se ejecuta la función que notifica si cayó la sesión principal de la API
+              notificarSesionOff("Error01 de sesión de la API: ", data.responseExSave.error);
+              // Vacia el array de los turnos para no notificar por cada turno cada segundo
+              losTurnos = [];
             }
             // El numero esta mal escrito o supera los 12 caracteres
             if (errMsg === "Evaluation failed") {
@@ -260,7 +262,15 @@ module.exports = (app) => {
           }
         })
         .catch((error) => {
-          console.error("Axios-Error al enviar WWE-API:", error.code);
+          if (error.code === "ECONNABORTED") {
+            console.error("La solicitud tardó demasiado y se canceló", error.code);
+            notificarSesionOff("Error02 de conexión con la API: " + error.code);
+            losTurnos = [];
+          } else {
+            console.error("Error de conexión con la API: ", error.code);
+            notificarSesionOff("Error02 de conexión con la API: " + error.code);
+            losTurnos = [];
+          }
         });
 
       await retraso();
@@ -283,6 +293,56 @@ module.exports = (app) => {
           msg: error.message,
         });
       });
+  }
+
+  /**
+   *  NOTIFICADOR DE ERRORES
+   */
+  let retrasoNotificador = () => new Promise((r) => setTimeout(r, 5000));
+
+  let numerosNotificados = [
+    { NOMBRE: "Alejandro", NUMERO: "595986153301" },
+    { NOMBRE: "Alejandro Corpo", NUMERO: "595974107341" },
+    //{ NOMBRE: "Juan Corpo", NUMERO: "595991711570" },
+  ];
+
+  async function notificarSesionOff(error) {
+    for (let item of numerosNotificados) {
+      console.log(item);
+
+      mensajeBody = {
+        message: `Error en la API - EnviadorNoAsistidos
+${error}`,
+        phone: item.NUMERO,
+        mimeType: "",
+        data: "",
+        fileName: "",
+        fileSize: "",
+      };
+
+      // Envia el mensaje
+      axios
+        .post(wwaUrl_Notificacion, mensajeBody, { timeout: 10000 })
+        .then((response) => {
+          const data = response.data;
+
+          if (data.responseExSave.id) {
+            console.log("**Notificacion de ERROR Enviada - OK");
+          }
+
+          if (data.responseExSave.error) {
+            console.log("**Notificacion de ERROR No enviado - error");
+            console.log("**Verificar la sesion local: " + wwaUrl_Notificacion);
+          }
+        })
+        .catch((error) => {
+          console.error("**Ocurrió un error - Notificacion de ERROR No enviado:", error.code);
+          console.log("**Verificar la sesion local: " + wwaUrl_Notificacion);
+        });
+
+      // Espera 5s
+      await retrasoNotificador();
+    }
   }
 
   /*
