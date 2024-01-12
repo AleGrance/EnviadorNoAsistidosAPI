@@ -9,10 +9,10 @@ var Firebird = require("node-firebird");
 import { firebird } from "../libs/config";
 
 // Var para la conexion a WWA Free
-const wwaUrl = "http://localhost:3001/lead";
+//const wwaUrl = "http://localhost:3001/lead";
 
 // Conexion a WWA Free del Centos 10.27
-//const wwaUrl = "http://192.168.10.200:3002/lead";
+const wwaUrl = "http://192.168.10.200:3002/lead";
 
 // URL del notificador
 const wwaUrl_Notificacion = "http://localhost:3088/lead";
@@ -103,7 +103,7 @@ module.exports = (app) => {
       db.query(
         // Trae los ultimos 50 registros de turnos del JKMT
         "SELECT * FROM VW_RESUMEN_TURNOS_AYER",
-        //"SELECT COUNT(*) FROM VW_RESUMEN_TURNOS_HOY",
+
         function (err, result) {
           console.log("Cant de turnos obtenidos del JKMT:", result.length);
 
@@ -120,20 +120,20 @@ module.exports = (app) => {
 
             // Si el nro de tel trae NULL cambiar por 595000 y cambiar el estado a 2
             // Si no reemplazar el 0 por el 595
-            // if (!e.TELEFONO_MOVIL) {
-            //   e.TELEFONO_MOVIL = "595000";
-            //   e.estado_envio = 2;
-            // } else {
-            //   e.TELEFONO_MOVIL = e.TELEFONO_MOVIL.replace(0, "595");
-            // }
-
-            // Reemplazar por mi nro para probar el envio
             if (!e.TELEFONO_MOVIL) {
               e.TELEFONO_MOVIL = "595000";
               e.estado_envio = 2;
             } else {
-              e.TELEFONO_MOVIL = "595986153301";
+              e.TELEFONO_MOVIL = e.TELEFONO_MOVIL.replace(0, "595");
             }
+
+            // Reemplazar por mi nro para probar el envio
+            // if (!e.TELEFONO_MOVIL) {
+            //   e.TELEFONO_MOVIL = "595000";
+            //   e.estado_envio = 2;
+            // } else {
+            //   e.TELEFONO_MOVIL = "595986153301";
+            // }
 
             // Poblar PGSQL
             Turnos_no_asistidos.create(e)
@@ -177,7 +177,7 @@ module.exports = (app) => {
     }, tiempoRetrasoPGSQL);
   }
 
-  iniciarEnvio();
+  //iniciarEnvio();
 
   // Envia los mensajes
   let retraso = () => new Promise((r) => setTimeout(r, tiempoRetrasoEnvios));
