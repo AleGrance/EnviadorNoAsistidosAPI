@@ -177,7 +177,15 @@ module.exports = (app) => {
     }, tiempoRetrasoPGSQL);
   }
 
-  //iniciarEnvio();
+  iniciarEnvio();
+
+  // Reintentar envio si la API WWA falla
+  function retry() {
+    console.log('Se va a intentar enviar nuevamente luego de 1m ...');
+    setTimeout(() => {
+      iniciarEnvio();
+    }, 1000 * 60);
+  }
 
   // Envia los mensajes
   let retraso = () => new Promise((r) => setTimeout(r, tiempoRetrasoEnvios));
@@ -242,17 +250,19 @@ module.exports = (app) => {
             console.log("No enviado - error");
             const errMsg = data.responseExSave.error.slice(0, 17);
             if (errMsg === "Escanee el código") {
-              updateEstatusERROR(turnoId, 104);
-              //console.log("Error 104: ", data.responseExSave.error);
+              console.log("Error 104: ", errMsg);
+              // Se ejecuta la función que notifica si cayó la sesión principal de la API
+              notificarSesionOff("Error01 de sesión de la API: " + errMsg);
+              // Vacia el array de los turnos para no notificar por cada turno cada segundo
+              losTurnos = [];
             }
             // Sesion cerrada o desvinculada. Puede que se envie al abrir la sesion o al vincular
             if (errMsg === "Protocol error (R") {
-              updateEstatusERROR(turnoId, 105);
-              //console.log("Error 105: ", data.responseExSave.error);
+              console.log("Error 105: ", errMsg);
               // Se ejecuta la función que notifica si cayó la sesión principal de la API
-              notificarSesionOff("Error01 de sesión de la API: ", data.responseExSave.error);
+              notificarSesionOff("Error01 de sesión de la API: " + errMsg);
               // Vacia el array de los turnos para no notificar por cada turno cada segundo
-              losTurnos = [];
+              losTurnos = [];              
             }
             // El numero esta mal escrito o supera los 12 caracteres
             if (errMsg === "Evaluation failed") {
@@ -311,7 +321,7 @@ module.exports = (app) => {
       console.log(item);
 
       mensajeBody = {
-        message: `Error en la API - EnviadorNoAsistidos
+        message: `*Error en la API - EnviadorNoAsistidos*
 ${error}`,
         phone: item.NUMERO,
         mimeType: "",
@@ -343,6 +353,9 @@ ${error}`,
       // Espera 5s
       await retrasoNotificador();
     }
+
+    // Reintentar el envio luego de 1m
+    retry();
   }
 
   /*
