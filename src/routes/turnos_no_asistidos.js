@@ -16,6 +16,7 @@ const wwaUrl = "http://192.168.10.200:3002/lead";
 
 // URL del notificador
 const wwaUrl_Notificacion = "http://localhost:3088/lead";
+//const wwaUrl_Notificacion = "http://localhost:3001/lead";
 
 // Datos del Mensaje de whatsapp
 let fileMimeTypeMedia = "";
@@ -34,7 +35,7 @@ _Recorda que en caso de no poder asistir a tu turno debes notificar con tiempo y
 let mensajePieCompleto = "";
 
 // Ruta de la imagen JPEG
-const imagePath = path.join(__dirname, "..", "assets", "img", "imgNoAsistidos.jpeg");
+const imagePath = path.join(__dirname, "..", "img", "imgNoAsistidos.jpeg");
 // Leer el contenido de la imagen como un buffer
 const imageBuffer = fs.readFileSync(imagePath);
 // Convertir el buffer a base64
@@ -177,11 +178,11 @@ module.exports = (app) => {
     }, tiempoRetrasoPGSQL);
   }
 
-  iniciarEnvio();
+  //iniciarEnvio();
 
   // Reintentar envio si la API WWA falla
   function retry() {
-    console.log('Se va a intentar enviar nuevamente luego de 1m ...');
+    console.log("Se va a intentar enviar nuevamente luego de 2m ...");
     setTimeout(() => {
       iniciarEnvio();
     }, 1000 * 60);
@@ -191,23 +192,23 @@ module.exports = (app) => {
   let retraso = () => new Promise((r) => setTimeout(r, tiempoRetrasoEnvios));
   async function enviarMensaje() {
     console.log("Inicia el recorrido del for para enviar los turnos No Asistidos");
-    for (let i = 0; i < losTurnos.length; i++) {
-      const turnoId = losTurnos[i].id_turno;
-      mensajePieCompleto = losTurnos[i].CLIENTE + mensajePie;
+    try {
+      for (let i = 0; i < losTurnos.length; i++) {
+        try {
+          const turnoId = losTurnos[i].id_turno;
+          mensajePieCompleto = losTurnos[i].CLIENTE + mensajePie;
 
-      const data = {
-        message: mensajePieCompleto,
-        phone: losTurnos[i].TELEFONO_MOVIL,
-        mimeType: fileMimeTypeMedia,
-        data: fileBase64Media,
-        fileName: "",
-        fileSize: "",
-      };
+          const dataBody = {
+            message: mensajePieCompleto,
+            phone: losTurnos[i].TELEFONO_MOVIL,
+            mimeType: fileMimeTypeMedia,
+            data: fileBase64Media,
+            fileName: "",
+            fileSize: "",
+          };
 
-      // Funcion ajax para nodejs que realiza los envios a la API free WWA
-      axios
-        .post(wwaUrl, data, { timeout: 60000 })
-        .then((response) => {
+          const response = await axios.post(wwaUrl, dataBody, { timeout: 1000 * 60 });
+          // Procesar la respuesta aquí...
           const data = response.data;
 
           if (data.responseExSave.id) {
@@ -251,18 +252,16 @@ module.exports = (app) => {
             const errMsg = data.responseExSave.error.slice(0, 17);
             if (errMsg === "Escanee el código") {
               console.log("Error 104: ", errMsg);
-              // Se ejecuta la función que notifica si cayó la sesión principal de la API
-              notificarSesionOff("Error01 de sesión de la API: " + errMsg);
               // Vacia el array de los turnos para no notificar por cada turno cada segundo
               losTurnos = [];
+              throw new Error(`Error en sesión en respuesta de la solicitud Axios - ${errMsg}`);
             }
             // Sesion cerrada o desvinculada. Puede que se envie al abrir la sesion o al vincular
             if (errMsg === "Protocol error (R") {
               console.log("Error 105: ", errMsg);
-              // Se ejecuta la función que notifica si cayó la sesión principal de la API
-              notificarSesionOff("Error01 de sesión de la API: " + errMsg);
               // Vacia el array de los turnos para no notificar por cada turno cada segundo
-              losTurnos = [];              
+              losTurnos = [];
+              throw new Error(`Error en sesión en respuesta de la solicitud Axios - ${errMsg}`);
             }
             // El numero esta mal escrito o supera los 12 caracteres
             if (errMsg === "Evaluation failed") {
@@ -270,24 +269,32 @@ module.exports = (app) => {
               //console.log("Error 106: ", data.responseExSave.error);
             }
           }
-        })
-        .catch((error) => {
+        } catch (error) {
+          console.log(error);
+          // Manejo de errores aquí...
           if (error.code === "ECONNABORTED") {
             console.error("La solicitud tardó demasiado y se canceló", error.code);
             notificarSesionOff("Error02 de conexión con la API: " + error.code);
-            losTurnos = [];
           } else {
-            console.error("Error de conexión con la API: ", error.code);
-            notificarSesionOff("Error02 de conexión con la API: " + error.code);
-            losTurnos = [];
+            console.error("Error de conexión con la API: ", error);
+            notificarSesionOff("Error02 de conexión con la API: " + error);
           }
-        });
+          // Lanzar una excepción para detener el bucle
+          losTurnos = [];
+          throw new Error(`"Error de conexión en la solicitud Axios - ${error.code}`);
+        }
 
-      await retraso();
+        // Esperar 15 segundos antes de la próxima iteración
+        await retraso();
+      }
+      console.log("Fin del envío");
+    } catch (error) {
+      console.error("Error en el bucle principal:", error.message);
+      // Manejar el error del bucle aquí
     }
-    console.log("Fin del envío");
   }
 
+  // Update estado en caso de error
   function updateEstatusERROR(turnoId, cod_error) {
     // Se actualiza el estado segun el errors
     const body = {
