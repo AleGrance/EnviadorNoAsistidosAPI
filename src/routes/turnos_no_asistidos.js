@@ -194,19 +194,19 @@ module.exports = (app) => {
     console.log("Inicia el recorrido del for para enviar los turnos No Asistidos");
     try {
       for (let i = 0; i < losTurnos.length; i++) {
+        const turnoId = losTurnos[i].id_turno;
+        mensajePieCompleto = losTurnos[i].CLIENTE + mensajePie;
+
+        const dataBody = {
+          message: mensajePieCompleto,
+          phone: losTurnos[i].TELEFONO_MOVIL,
+          mimeType: fileMimeTypeMedia,
+          data: fileBase64Media,
+          fileName: "",
+          fileSize: "",
+        };
+
         try {
-          const turnoId = losTurnos[i].id_turno;
-          mensajePieCompleto = losTurnos[i].CLIENTE + mensajePie;
-
-          const dataBody = {
-            message: mensajePieCompleto,
-            phone: losTurnos[i].TELEFONO_MOVIL,
-            mimeType: fileMimeTypeMedia,
-            data: fileBase64Media,
-            fileName: "",
-            fileSize: "",
-          };
-
           const response = await axios.post(wwaUrl, dataBody, { timeout: 1000 * 60 });
           // Procesar la respuesta aquí...
           const data = response.data;
@@ -270,14 +270,14 @@ module.exports = (app) => {
             }
           }
         } catch (error) {
-          console.log(error);
-          // Manejo de errores aquí...
+          console.error("Error en la solicitud Axios:", error.code);
+          // Manejar el error específico
           if (error.code === "ECONNABORTED") {
             console.error("La solicitud tardó demasiado y se canceló", error.code);
             notificarSesionOff("Error02 de conexión con la API: " + error.code);
           } else {
-            console.error("Error de conexión con la API: ", error);
-            notificarSesionOff("Error02 de conexión con la API: " + error);
+            console.error("Error de conexión con la API: ", error.code);
+            notificarSesionOff("Error02 de conexión con la API: " + error.code);
           }
           // Lanzar una excepción para detener el bucle
           losTurnos = [];
@@ -470,75 +470,6 @@ ${error}`,
         });
       });
   });
-
-  // // Turnos no enviados - estado_envio 2 o 3
-  // app.route("/turnosNoNotificados").get((req, res) => {
-  //   // Fecha de hoy 2022-02-30
-  //   let fechaHoy = new Date().toISOString().slice(0, 10);
-  //   Turnos.count({
-  //     where: {
-  //       [Op.and]: [
-  //         { estado_envio: { [Op.in]: [2, 3] } },
-  //         {
-  //           updatedAt: {
-  //             [Op.between]: [fechaHoy + " 00:00:00", fechaHoy + " 23:59:59"],
-  //           },
-  //         },
-  //       ],
-  //     },
-  //     //order: [["FECHA_CREACION", "DESC"]],
-  //   })
-  //     .then((result) => res.json(result))
-  //     .catch((error) => {
-  //       res.status(402).json({
-  //         msg: error.menssage,
-  //       });
-  //     });
-  // });
-
-  // // Trae la cantidad de turnos enviados por rango de fecha desde hasta
-  // app.route("/turnosNoNotificadosFecha").post((req, res) => {
-  //   let fechaHoy = new Date().toISOString().slice(0, 10);
-  //   let { fecha_desde, fecha_hasta } = req.body;
-
-  //   if (fecha_desde === "" && fecha_hasta === "") {
-  //     fecha_desde = fechaHoy;
-  //     fecha_hasta = fechaHoy;
-  //   }
-
-  //   if (fecha_hasta == "") {
-  //     fecha_hasta = fecha_desde;
-  //   }
-
-  //   if (fecha_desde == "") {
-  //     fecha_desde = fecha_hasta;
-  //   }
-
-  //   console.log(req.body);
-
-  //   Turnos.count({
-  //     where: {
-  //       [Op.and]: [
-  //         { estado_envio: { [Op.in]: [2, 3] } },
-  //         {
-  //           updatedAt: {
-  //             [Op.between]: [
-  //               fecha_desde + " 00:00:00",
-  //               fecha_hasta + " 23:59:59",
-  //             ],
-  //           },
-  //         },
-  //       ],
-  //     },
-  //     //order: [["createdAt", "DESC"]],
-  //   })
-  //     .then((result) => res.json(result))
-  //     .catch((error) => {
-  //       res.status(402).json({
-  //         msg: error.menssage,
-  //       });
-  //     });
-  // });
 
   app
     .route("/turnosNoAsistidos/:id_turno")
