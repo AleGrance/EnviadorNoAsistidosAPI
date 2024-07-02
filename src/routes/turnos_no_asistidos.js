@@ -35,7 +35,7 @@ _Recorda que en caso de no poder asistir a tu turno debes notificar con tiempo y
 let mensajePieCompleto = "";
 
 // Ruta de la imagen JPEG
-const imagePath = path.join(__dirname, "..", "img", "imgNoAsistidos.jpeg");
+const imagePath = path.join(__dirname, "..", "img", "flyer.jpeg");
 // Leer el contenido de la imagen como un buffer
 const imageBuffer = fs.readFileSync(imagePath);
 // Convertir el buffer a base64
